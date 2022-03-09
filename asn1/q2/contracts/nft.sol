@@ -6,11 +6,15 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
+import "./merkle.sol";
 
 contract MyNFT is ERC721URIStorage {
     using Strings for uint256;
     using Counters for Counters.Counter;
     Counters.Counter private _tokenIds;
+
+    // maps each NFT to a merkle tree as soon as the token gets transfered
+    mapping(uint256 => Merkle) merkleTrees;
 
     constructor() ERC721("MyNFT", "MNFT") {
     }
@@ -51,5 +55,21 @@ contract MyNFT is ERC721URIStorage {
                 Base64.encode(dataURI)
             )
         );
+    }
+
+    // updates the merkle root after token transfer
+    function _afterTokenTransfer(address /*from*/, address to, uint256 tokenId)
+        internal
+        override
+    {
+        if (address(0) == address(merkleTrees[tokenId])) {
+            merkleTrees[tokenId] = new Merkle();
+        }
+        string[] memory data = new string[](4);
+        data[0] = uint256(uint160(address(msg.sender))).toString();
+        data[1] = uint256(uint160(address(to))).toString();
+        data[2] = tokenId.toString();
+        data[3] = tokenURI(tokenId);
+        merkleTrees[tokenId].update(data);
     }
 }
